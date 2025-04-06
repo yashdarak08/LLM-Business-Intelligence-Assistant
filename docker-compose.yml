@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  backend:
+    build: .
+    container_name: bi-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+  frontend:
+    image: python:3.9-slim
+    container_name: bi-frontend
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: streamlit run frontend/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+    environment:
+      - BACKEND_URL=http://backend:8000 # URL of the backend service in Docker network
+  db:   
+    image: postgres:latest
+    container_name: bi-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: bi_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - bi_network
