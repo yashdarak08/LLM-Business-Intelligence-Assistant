@@ -1,0 +1,48 @@
+# Use an official Python runtime as a parent image
+FROM python:3.9-slim
+
+# Set environment variables to avoid .pyc files and enable unbuffered logging
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    gcc \
+    libpq-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Pre-download and cache the models
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+RUN python -c "from transformers import AutoModelForCausalLM, AutoTokenizer; AutoModelForCausalLM.from_pretrained('gpt2'); AutoTokenizer.from_pretrained('gpt2')"
+
+# Download NLTK data
+RUN python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('stopwords', quiet=True)"
+
+# Copy the entire project
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p /app/data && \
+    mkdir -p /app/backend/logs && \
+    mkdir -p /app/migrations/versions
+
+# Set up the database
+RUN python -c "from backend.database import create_tables; create_tables()"
+
+# Expose port for FastAPI
+EXPOSE 8000
+
+# Run the FastAPI server on container start
+CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000"]
